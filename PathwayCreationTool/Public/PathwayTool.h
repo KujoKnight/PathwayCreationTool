@@ -17,7 +17,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "Kismet/KismetMathLibrary.h"
-#include "PathwayCreationTool.generated.h"
+#include "PathwayTool.generated.h"
 
 UCLASS()
 class SUPERHAMSTERHAVOC_API APathwayCreationTool : public AActor
