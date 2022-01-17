@@ -9,7 +9,7 @@
 #include "PathwayTool.h"
 
 // Constructor for Path Creation Tool
-APathwayTool::APathwayTool()
+APathwayCreationTool::APathwayCreationTool()
 {
 	// Disable Tick()
 	PrimaryActorTick.bCanEverTick = true;
@@ -35,6 +35,20 @@ APathwayTool::APathwayTool()
 		Mesh->AttachToComponent(Root, FAttachmentTransformRules::KeepRelativeTransform);
 	}
 
+	// Add Start Mesh Component
+	StartMesh = CreateDefaultSubobject<UStaticMeshComponent>("StartMesh");
+	if (StartMesh)
+	{
+		StartMesh->AttachToComponent(RootComponent, FAttachmentTransformRules::KeepRelativeTransform);
+	}
+
+	// Add End Mesh Component
+	EndMesh = CreateDefaultSubobject<UStaticMeshComponent>("EndMesh");
+	if (EndMesh)
+	{
+		EndMesh->AttachToComponent(RootComponent, FAttachmentTransformRules::KeepRelativeTransform);
+	}
+
 	// Initialize Spline Point Vectors
 	SplinePoints.Empty();
 	SplinePoints.Add(FVector::ZeroVector);
@@ -48,7 +62,7 @@ APathwayTool::APathwayTool()
 }
 
 // Override of OnConstruction for Editing in Editor
-void APathwayTool::OnConstruction(const FTransform& Transform)
+void APathwayCreationTool::OnConstruction(const FTransform& Transform)
 {
 	// Call Parent OnConstruction Method
 	Super::OnConstruction(Transform);
@@ -58,49 +72,180 @@ void APathwayTool::OnConstruction(const FTransform& Transform)
 		Mesh->ClearInstances();
 
 	// Refresh Spline Points
-	Spline->SetClosedLoop(IsClosedLoop);
 	Spline->ClearSplinePoints();
 	Spline->SetSplinePoints(SplinePoints, ESplineCoordinateSpace::Local);
 	for (auto i = 0; i < Spline->GetNumberOfSplinePoints() - 1; i++)
 	{
 		Spline->SetSplinePointType(i, CurveType);
 	}
+	Spline->SetClosedLoop(IsClosedLoop);
 
 	// Mesh Instance Properties
 	FTransform MeshTransform = FTransform::Identity;
 	FVector MeshLocation = FVector::ZeroVector;
-	FVector MeshSize = MeshScale * Mesh->GetStaticMesh()->GetBounds().BoxExtent * 2.0f;
+	FQuat MeshRotation = FQuat::Identity;
+	FVector MeshSize = FVector::OneVector;
+	if (Mesh->GetStaticMesh())
+	{
+		MeshSize = MeshScale * (Mesh->GetStaticMesh()->GetBounds().BoxExtent * MeshSpacing);
+	}
+	else 
+	{
+		MeshSize = MeshScale * FVector::OneVector;
+	}
 	FVector Offset = FVector::ZeroVector;
 
 	// Distance Check Value
 	float dist = 0.0f;
 
-	// Max Instances
-	float max = 1.0f;
-	if (Spline->GetSplineLength() != 0)
+	// Enable Start Mesh
+	StartMesh->SetVisibility(EnableStartMesh);
+	StartMesh->SetHiddenInGame(EnableStartMesh);
+	StartMesh->SetRelativeLocation(FVector::ZeroVector);
+
+	if (!UseMassSpread)
 	{
-		max = Spline->GetSplineLength() / MeshSize.Size();
+		// Max Instances
+		float max = 1.0f;
+		if (Spline->GetSplineLength() != 0)
+		{
+			max = Spline->GetSplineLength() / MeshSize.Size();
+		}
+
+		// Add Mesh Instances along Spline
+		for (auto i = 0; i < max; i++)
+		{
+			// Get Current Distance
+			dist = i * MeshSize.Size();
+
+			// Set Mesh Location
+			MeshLocation = Spline->GetLocationAtDistanceAlongSpline(dist, ESplineCoordinateSpace::Local);
+
+			// Get Offset Values
+			Offset.X = FMath::Cos(i) * MeshOffset.X;
+			Offset.Y = FMath::Sin(i) * MeshOffset.Y;
+
+			// Create Mesh Instance
+			FTransform prevTransform = FTransform::Identity;
+			MeshTransform.SetLocation(MeshLocation + Offset);
+
+			if (EnableRandomRotation)
+			{
+				FRotator randRot = FRotator::ZeroRotator;
+				randRot = FRotator(0.0f, FMath::RandRange(0, 360), 0.0f);
+				MeshRotation = randRot.Quaternion();
+			}
+			else
+			{
+				if (SetInstanceLookAt)
+				{
+					if (i == 0)
+					{
+						FRotator lookAt = FRotator::ZeroRotator;
+						float nextDist = i + 1 * MeshSize.Size();
+						FVector nextPoint = Spline->GetLocationAtDistanceAlongSpline(nextDist, ESplineCoordinateSpace::Local);
+						lookAt = UKismetMathLibrary::FindLookAtRotation(MeshTransform.GetLocation(), nextPoint);
+						MeshRotation = lookAt.Quaternion();
+					}
+					else
+					{
+						FRotator lookAt = FRotator::ZeroRotator;
+						lookAt = UKismetMathLibrary::FindLookAtRotation(MeshTransform.GetLocation(), prevTransform.GetLocation());
+						MeshRotation = lookAt.Quaternion();
+					}
+				}
+				else
+				{
+					MeshRotation = FQuat::Identity;
+				}
+			}
+			MeshTransform.SetRotation(MeshRotation);
+
+			if (EnableRandomScale)
+			{
+				FVector randScale = FVector::OneVector;
+				randScale = FVector(FMath::RandRange(0.0f, 1.0f), FMath::RandRange(0.0f, 1.0f), 1.0f);
+				MeshTransform.SetScale3D(randScale);
+			}
+			else
+			{
+				MeshTransform.SetScale3D(MeshScale);
+			}
+
+			Mesh->AddInstance(MeshTransform);
+
+			prevTransform = MeshTransform;
+		}
+	}
+	else
+	{
+		// Add Mesh Instances along Spline
+		for (auto i = 0; i < Spline->GetSplineLength(); i += MeshSize.Size())
+		{
+			// Set Mesh Location
+			MeshLocation = Spline->GetLocationAtDistanceAlongSpline(i, ESplineCoordinateSpace::Local);
+
+			// Get Offset Values
+			Offset.X = FMath::Cos(i) * MeshOffset.X;
+			Offset.Y = FMath::Sin(i) * MeshOffset.Y;
+
+			// Create Mesh Instance
+			FTransform prevTransform = FTransform::Identity;
+			MeshTransform.SetLocation(MeshLocation + Offset);
+
+			if (EnableRandomRotation)
+			{
+				FRotator randRot = FRotator::ZeroRotator;
+				randRot = FRotator(0.0f, FMath::RandRange(0, 360), 0.0f);
+				MeshRotation = randRot.Quaternion();
+			}
+			else
+			{
+				if (SetInstanceLookAt)
+				{
+					if (i == 0)
+					{
+						FRotator lookAt = FRotator::ZeroRotator;
+						float nextDist = i + 1 * MeshSize.Size();
+						FVector nextPoint = Spline->GetLocationAtDistanceAlongSpline(nextDist, ESplineCoordinateSpace::Local);
+						lookAt = UKismetMathLibrary::FindLookAtRotation(MeshTransform.GetLocation(), nextPoint);
+						MeshRotation = lookAt.Quaternion();
+					}
+					else
+					{
+						FRotator lookAt = FRotator::ZeroRotator;
+						lookAt = UKismetMathLibrary::FindLookAtRotation(MeshTransform.GetLocation(), prevTransform.GetLocation());
+						MeshRotation = lookAt.Quaternion();
+					}
+				}
+				else
+				{
+					MeshRotation = FQuat::Identity;
+				}
+			}
+			MeshTransform.SetRotation(MeshRotation);
+
+			if (EnableRandomScale)
+			{
+				FVector randScale = FVector::OneVector;
+				randScale = FVector(FMath::RandRange(0.0f, 1.0f), FMath::RandRange(0.0f, 1.0f), 1.0f);
+				MeshTransform.SetScale3D(randScale);
+			}
+			else
+			{
+				MeshTransform.SetScale3D(MeshScale);
+			}
+
+			Mesh->AddInstance(MeshTransform);
+
+			prevTransform = MeshTransform;
+		}
 	}
 
-	// Add Mesh Instances along Spline
-	for (auto i = 0; i < max; i++)
-	{
-		// Get Current Distance
-		dist = i * MeshSize.Size();
-
-		// Set Mesh Location
-		MeshLocation = Spline->GetLocationAtDistanceAlongSpline(dist, ESplineCoordinateSpace::Local);
-
-		// Get Offset Values
-		Offset.X = FMath::Cos(i) * MeshOffset.X;
-		Offset.Y = FMath::Sin(i) * MeshOffset.Y;
-
-		// Create Mesh Instance
-		MeshTransform.SetLocation(MeshLocation + Offset);
-		MeshTransform.SetRotation(FQuat::Identity);
-		MeshTransform.SetScale3D(MeshScale);
-		Mesh->AddInstance(MeshTransform);
-	}
+	// Enable End Mesh
+	EndMesh->SetVisibility(EnableEndMesh);
+	EndMesh->SetHiddenInGame(EnableEndMesh);
+	EndMesh->SetRelativeLocation(Spline->GetLocationAtDistanceAlongSpline(dist, ESplineCoordinateSpace::Local));
 
 	UKismetSystemLibrary::FlushPersistentDebugLines(GetWorld());
 
