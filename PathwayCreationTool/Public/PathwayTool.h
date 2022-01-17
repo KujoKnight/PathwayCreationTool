@@ -14,17 +14,19 @@
 #include "Components/SceneComponent.h"
 #include "Components/SplineComponent.h"
 #include "Components/InstancedStaticMeshComponent.h"
+#include "Components/StaticMeshComponent.h"
 #include "Kismet/KismetSystemLibrary.h"
-#include "PathwayTool.generated.h"
+#include "Kismet/KismetMathLibrary.h"
+#include "PathwayCreationTool.generated.h"
 
 UCLASS()
-class PATHWAYCREATIONTOOL_API APathwayTool : public AActor
+class SUPERHAMSTERHAVOC_API APathwayCreationTool : public AActor
 {
 	GENERATED_BODY()
 	
-public:
+public:	
 	// Tool Constructor
-	APathwayTool();
+	APathwayCreationTool();
 
 protected:
 	// Override OnConstruction
@@ -43,28 +45,63 @@ public:
 	UPROPERTY(VisibleAnywhere, Category = "Path")
 		UInstancedStaticMeshComponent* Mesh;
 
+	// Path Start Mesh
+	UPROPERTY(VisibleAnywhere, Category = "Path")
+		UStaticMeshComponent* StartMesh;
+
+	// Path End Mesh
+	UPROPERTY(VisibleAnywhere, Category = "Path")
+		UStaticMeshComponent* EndMesh;
+
 	// Spline Point Vectors
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Path")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Path | Spline")
 		TArray<FVector> SplinePoints;
 
 	// Instanced Mesh Scale
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Path")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Path | Mesh")
 		FVector MeshScale;
 
 	// Instanced Mesh Offset
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Path")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Path | Mesh")
 		FVector2D MeshOffset;
 
 	// Spline Points Curve Type
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Path")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Path | Spline")
 		TEnumAsByte<ESplinePointType::Type> CurveType;
 
+	// Instanced Mesh Offset
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Path | Mesh", meta = (ClampMin = "0.01", ClampMax = "3.0"))
+		float MeshSpacing = 2.0f;
+
 	// Spline Closed Loop
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Path")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Path | Spline")
 		bool IsClosedLoop = false;
 
-	// Show Debug
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Path")
-		bool ShowDebug = false;
+	// Enable Start Mesh
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Path | Mesh")
+		bool EnableStartMesh = false;
 
+	// Enable End Mesh
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Path | Mesh")
+		bool EnableEndMesh = false;
+
+	// Enable Start Mesh
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Path | Mesh")
+		bool SetInstanceLookAt = false;
+
+	// Use Random Rotation
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Path | Mesh")
+		bool EnableRandomRotation = false;
+
+	// Use Random Scale
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Path | Mesh")
+		bool EnableRandomScale = false;
+	
+	// Use Mass Spread
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Path | Mesh")
+		bool UseMassSpread = false;
+
+	// Show Debug
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Path | Debug")
+		bool ShowDebug = false;
 };
